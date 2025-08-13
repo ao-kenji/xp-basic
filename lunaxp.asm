@@ -10,9 +10,6 @@ SER_BUFSIZE     .EQU     3FH
 SER_FULLSIZE    .EQU     30H
 SER_EMPTYSIZE   .EQU     5
 
-RTS_HIGH        .EQU     0D6H
-RTS_LOW         .EQU     096H
-
 serBuf          .EQU     $2000
 serInPtr        .EQU     serBuf+SER_BUFSIZE
 serRdPtr        .EQU     serInPtr+2
@@ -24,88 +21,72 @@ CR              .EQU     0DH
 LF              .EQU     0AH
 CS              .EQU     0CH             ; Clear screen
 
-;
+;------------------------------------------------------------------------------
 ; LUNAXP: HD647180(Z180) internal ports (not complete list)
-;
+
 TIME_RLDR0L	.EQU	00EH
 TIME_RLDR0H	.EQU	00FH
 TIME_TCR	.EQU	010H
 DMA_DCNTL	.EQU	032H
+INT_ITC		.EQU	034H
 MEM_RCR		.EQU	036H
 MMU_CBR		.EQU	038H
 MMU_BBR		.EQU	039H
 MMU_CBAR	.EQU	03AH
 IO_ICR		.EQU	03FH
-;
-; LUNAXP: xpfe interface address
-;
-_xpfe_tx_flag	.EQU	XPFE_IF_BASE + 4 + 1
-_xpfe_rx_flag	.EQU	XPFE_IF_BASE + 4 + 5
 
-
-                .ORG $0000
 ;------------------------------------------------------------------------------
 ; Reset
 
-RST00           DI                       ;Disable interrupts
-                JP       INITXP          ;Initialize Hardware and go
+		.ORG $0000
+RST00:		DI			;Disable interrupts
+		JP	INITXP		;Initialize Hardware and go
 
 ;------------------------------------------------------------------------------
-; TX a character over RS232 
+; TX a character over xpfe tty
 
-                .ORG     0008H
-RST08            JP      TXA
+		.ORG     0008H
+RST08:		JP	TXA
 
 ;------------------------------------------------------------------------------
-; RX a character over RS232 Channel A [Console], hold here until char ready.
+; RX a character over xpfe tty, hold here until char ready.
 
-                .ORG 0010H
-RST10            JP      RXA
+		.ORG 0010H
+RST10:		JP      RXA
 
 ;------------------------------------------------------------------------------
 ; Check serial status
 
-                .ORG 0018H
-RST18            JP      CKINCHAR
-
-;------------------------------------------------------------------------------
-; LUNAXP/xpfe tty I/F
-
-                .ORG 0020H
-;XPFE_IF_BASE	.EQU	0020H
-XPFE_IF_BASE	.BYTE    "XPFE"
-                .BYTE    00H, 00H, 00H, 00H
-                .BYTE    00H, 00H, 00H, 00H
+		.ORG 0018H
+RST18:		JP      CKINCHAR
 
 ;------------------------------------------------------------------------------
 ; RST 38 - INTERRUPT VECTOR [ for IM 1 ]
 
-                .ORG     0038H
-RST38            JR      serialInt       
+		.ORG 0038H
+RST38:		JR	INT_HANDLER
 
 ;------------------------------------------------------------------------------
-serialInt:      EI		; dummy now
-                RETI
+INT_HANDLER:	EI			; dummy now
+		RETI
 
 ;------------------------------------------------------------------------------
 RXA:
-
-_xpfe_getc:
-	push hl
-	ld hl, _xpfe_rx_flag
+	push hl			; save HL in case
+	ld hl, XPFE_RX_FLAG
 	ld a, (hl)		; is the flag set?
 	or a
 	jr nz, __getc0
 	xor a			; if no, set the input char 0
 	jr __getc1
 __getc0:
-	dec hl			; now HL points _xpfe_rx_data
+	dec hl			; now HL points XPFE_RX_DATA
 	ld a, (hl)		; A has the input char
-	ld (hl), 0		; clear _xpfe_rx_data, in case
-	inc hl			; now HL points _xpfe_rx_flag
+	ld (hl), 0		; clear XPFE_RX_DATA, in case
+	inc hl			; now HL points XPFE_RX_FLAG
 	ld (hl), 0		; reset the flag
 __getc1:
-	pop hl
+	pop hl			; restore HL
 	ret
 
 waitForChar:    LD       A,(serBufUsed)
@@ -126,8 +107,6 @@ notRdWrap:      DI
                 LD       (serBufUsed),A
                 CP       SER_EMPTYSIZE
                 JR       NC,rts1
-                LD       A,RTS_LOW
-                OUT      ($80),A
 rts1:
                 LD       A,(HL)
                 EI
@@ -138,15 +117,15 @@ rts1:
 TXA:
 	push hl
 	push af
-	ld hl, _xpfe_tx_flag
+	ld hl, XPFE_TX_FLAG
 __putc0:
 	ld a, (hl)		; is the flag cleared?
 	or a
 	jr nz, __putc0		; if no, try again until cleared
 	pop af
-	dec hl			; now HL points _xpfe_tx_data
-	ld (hl), a		; write the output char in _xpfe_tx_data
-	inc hl			; now HL points _xpfe_tx_flag
+	dec hl			; now HL points XPFE_TX_DATA
+	ld (hl), a		; write the output char in XPFE_TX_DATA
+	inc hl			; now HL points XPFE_TX_FLAG
 	ld (hl), 0ffh		; set the flag
 	pop hl
 	ret
@@ -225,9 +204,15 @@ INITXP:
 
 ;	Enable Timer Ch0
 	ld a, 0x11			; enable downcounting & interrupt
-;;	out0 (TIME_TCR), a
+;;	out0 (TIME_TCR), a		; not enabled for now
 
+;	If we enable ITE1, it seems some wild interrupts are running on the
+;	 real LUNA XP hardware.  So we use only IE0 for now.
+;	set Interrupt/TRAP control reg
+;	 - enable interrupt ITE0 (for now)
 
+	ld a, 0x01
+	out0 (INT_ITC), a
 
                IM        1
                EI
@@ -265,5 +250,17 @@ SIGNON1:       .BYTE     CS
                .BYTE     "Z80 SBC By Grant Searle",CR,LF,0
 SIGNON2:       .BYTE     CR,LF
                .BYTE     "Cold or warm start (C or W)? ",0
+
+;------------------------------------------------------------------------------
+; LUNAXP: xpfe tty interface area
+
+		.ORG 01F00H
+XPFE_IF_BASE:	.BYTE	"XPFE"
+XPFE_TX_DATA:	.BYTE	00H
+XPFE_TX_FLAG:	.BYTE	00H
+		.BYTE	00H, 00H	; Padding
+XPFE_RX_DATA:	.BYTE	00H
+XPFE_RX_FLAG:	.BYTE	00H
+		.BYTE	00H, 00H	; Padding
 
 ;; .END

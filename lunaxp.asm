@@ -11,10 +11,7 @@ SER_FULLSIZE    .EQU     30H
 SER_EMPTYSIZE   .EQU     5
 
 serBuf          .EQU     $2000
-serInPtr        .EQU     serBuf+SER_BUFSIZE
-serRdPtr        .EQU     serInPtr+2
-serBufUsed      .EQU     serRdPtr+2
-basicStarted    .EQU     serBufUsed+1
+basicStarted    .EQU     serBuf
 TEMPSTACK       .EQU     $20ED ; Top of BASIC line input buffer so is "free ram" when BASIC resets
 
 CR              .EQU     0DH
@@ -89,24 +86,6 @@ __getc1:
 	pop hl			; restore HL
 	ret
 
-waitForChar:    LD       A,(serBufUsed)
-                CP       $00
-                JR       Z, waitForChar
-                PUSH     HL
-                LD       HL,(serRdPtr)
-                INC      HL
-                LD       A,L             ; Only need to check low byte becasuse buffer<256 bytes
-                ; CP       (serBuf+SER_BUFSIZE) & $FF
-                CP       SER_BUFSIZE & $FF ; assume serBuf & $FF == $00
-                JR       NZ, notRdWrap
-                LD       HL,serBuf
-notRdWrap:      DI
-                LD       (serRdPtr),HL
-                LD       A,(serBufUsed)
-                DEC      A
-                LD       (serBufUsed),A
-                CP       SER_EMPTYSIZE
-                JR       NC,rts1
 rts1:
                 LD       A,(HL)
                 EI
@@ -130,8 +109,7 @@ __putc0:
 	pop hl
 	ret
 ;------------------------------------------------------------------------------
-CKINCHAR        LD       A,(serBufUsed)
-                CP       $0
+CKINCHAR        XOR	 A
                 RET
 
 PRINTSTR:       LD       A,(HL)          ; Get character
@@ -145,11 +123,6 @@ PRINTSTR:       LD       A,(HL)          ; Get character
 INITXP:
                LD        HL,TEMPSTACK    ; Temp stack
                LD        SP,HL           ; Set up a temporary stack
-               LD        HL,serBuf
-               LD        (serInPtr),HL
-               LD        (serRdPtr),HL
-               XOR       A               ;0 to accumulator
-               LD        (serBufUsed),A
 
 ;	initial set up HD647180
 ;

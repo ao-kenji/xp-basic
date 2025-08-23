@@ -43,7 +43,7 @@ RST00:		DI			;Disable interrupts
 ; TX a character over xpfe tty
 
 		.ORG     0008H
-RST08:		JP	TXA
+RST08:		JR	TXA		;use JR, someone else touches 0x000AH?
 
 ;------------------------------------------------------------------------------
 ; RX a character over xpfe tty, hold here until char ready.
@@ -88,8 +88,8 @@ __getc1:
 
 rts1:
                 LD       A,(HL)
-                EI
                 POP      HL
+                EI
                 RET                      ; Char ready in A
 
 ;------------------------------------------------------------------------------
@@ -109,7 +109,8 @@ __putc0:
 	pop hl
 	ret
 ;------------------------------------------------------------------------------
-CKINCHAR        XOR	 A
+CKINCHAR:	LD	A, (XPFE_RX_FLAG)	; Get status
+		CP	A, 0FFH			; if 0xff, there is a character
                 RET
 
 PRINTSTR:       LD       A,(HL)          ; Get character
@@ -121,9 +122,6 @@ PRINTSTR:       LD       A,(HL)          ; Get character
                 RET
 ;------------------------------------------------------------------------------
 INITXP:
-               LD        HL,TEMPSTACK    ; Temp stack
-               LD        SP,HL           ; Set up a temporary stack
-
 ;	initial set up HD647180
 ;
 ;	I/O control register
@@ -159,6 +157,10 @@ INITXP:
 ;	 - bank area
 	out0 (MMU_BBR), a
 
+;	memory set up done, set the stack
+               LD        HL,TEMPSTACK    ; Temp stack
+               LD        SP,HL           ; Set up a temporary stack
+
 ;
 ;	Set up system tick timer
 ;
@@ -189,6 +191,7 @@ INITXP:
 
                IM        1
                EI
+
                LD        HL,SIGNON1      ; Sign-on message
                CALL      PRINTSTR        ; Output string
                LD        A,(basicStarted); Check the BASIC STARTED flag

@@ -227,6 +227,11 @@ SIGNON1:       .BYTE     CS
 SIGNON2:       .BYTE     CR,LF
                .BYTE     "Cold or warm start (C or W)? ",0
 
+HALTXP:
+		ld a, 0ffh
+		ld (XPFE_IS_HALT), a
+		halt
+
 ;------------------------------------------------------------------------------
 ; LUNAXP: xpfe tty interface area
 
@@ -234,7 +239,8 @@ SIGNON2:       .BYTE     CR,LF
 XPFE_IF_BASE:	.BYTE	"XPFE"
 XPFE_TX_DATA:	.BYTE	00H
 XPFE_TX_FLAG:	.BYTE	00H
-		.BYTE	00H, 00H	; Padding
+		.BYTE	00H		; Padding
+XPFE_IS_HALT:	.BYTE	00H		; 0: alive / other: halted
 XPFE_RX_DATA:	.BYTE	00H
 XPFE_RX_FLAG:	.BYTE	00H
 		.BYTE	00H, 00H	; Padding

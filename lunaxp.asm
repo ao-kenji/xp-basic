@@ -2,16 +2,7 @@
 ; Initializing, input and output routines for Grant's BASIC for LUNA XP
 ;==================================================================================
 
-; Minimum 6850 ACIA interrupt driven serial I/O to run modified NASCOM Basic 4.7
-; Full input buffering with incoming data hardware handshaking
-; Handshake shows full before the buffer is totally filled to allow run-on from the sender
-
-SER_BUFSIZE     .EQU     3FH
-SER_FULLSIZE    .EQU     30H
-SER_EMPTYSIZE   .EQU     5
-
-serBuf          .EQU     $2000
-basicStarted    .EQU     serBuf
+basicStarted    .EQU     $2000
 TEMPSTACK       .EQU     $20ED ; Top of BASIC line input buffer so is "free ram" when BASIC resets
 
 CR              .EQU     0DH
